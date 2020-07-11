@@ -370,7 +370,8 @@ The Response Body will be "Comment awaiting moderation". To see this comment nav
 ![](assets/Testing1/testing1_5.png)
 
 Let's go back to testing our GET method and enter `page_id=page1` for "Query Strings". We will still get `"[]"` for Reponse Body since we have not approved the comment. We will do this manually. Go to the row in the table and hover around `False` to be prompted to edit the entry. Set it to `True`. Now if you test GET, for "Reponse Body" you will get
-```
+
+```python
 [
   {
     "comment": "I like this project.",
@@ -444,7 +445,7 @@ Everytime you edit the code for lambda make sure to press the orange save button
 
 We now have deployed our app. Let's test in our terminal. For this I was on my linux machine:
 
-```
+```bash
 $ curl https://RANDOM_STRING_AS_SEEN_ON_APIGATEWAY.execute-api.us-west-2.amazonaws.com/prod/comment?page_id=page1
 [{"comment": "I like this project.", "display_name": "Stan", "time_stamp": "2020-05-20 02:27:14.571902"}]
 $ curl -X POST "https://RANDOM_STRING_AS_SEEN_ON_APIGATEWAY.execute-api.us-west-2.amazonaws.com/prod/comment?page_id=page1&display_name=Bob&comment=Hello"
@@ -454,7 +455,7 @@ $ curl https://RANDOM_STRING_AS_SEEN_ON_APIGATEWAY.execute-api.us-west-2.amazona
 ```
 
 For manual moderation go DynamoDB CommentSection table and changed approved status to "True" for new comment. Now running the GET command we get the newly added command:
-```
+```bash
 $ curl https://RANDOM_STRING_AS_SEEN_ON_APIGATEWAY.execute-api.us-west-2.amazonaws.com/prod/comment?page_id=page1
 [{"comment": "I like this project.", "display_name": "Stan", "time_stamp": "2020-05-20 02:27:14.571902"}, {"comment": "Hello", "display_name": "Bob", "time_stamp": "2020-05-21 03:30:19.995843"}]
 
@@ -468,7 +469,7 @@ Things are working outside of AWS!
 
 Now let's see the html code:
 
-```
+```html
 <html>
 	<head>
 		<script src="https://ajax.googleapis.com/ajax/libs/jquery/3.4.1/jquery.min.js"></script>
@@ -597,7 +598,7 @@ We will start with verifying a new email address. Set your personal email addres
 
 To your `commentSectionManager` lambda function we will add the following lines in the `POST` method:
 
-```
+```python
 	email_client = boto3.client('ses')
         
         response = email_client.send_email(
@@ -622,7 +623,7 @@ To your `commentSectionManager` lambda function we will add the following lines 
         )
 ```
 to get 
-```
+```python
 import json
 import datetime
 import re
@@ -795,7 +796,7 @@ The rule will like the following:
 
 The previous image requires for you to already have an `approveComment` lambda. The function is as follows:
 
-```
+```python
 import json
 import datetime
 import re
@@ -846,7 +847,7 @@ def lambda_handler(event, context):
 ```
 
 It needs the same permission as the previous lambda -> sending emails as well as acessing the dynamodb (`update_item`). However, it does not need to be deployed as it is not facing the public direct. In addition, we modify the email code within the `POST` function of `commentSectionManager` to send a more complicated email:
-```
+```python
 	response = email_client.send_email(
             Source='comments@YOUROWNEDDOMAIN.COM',
             Destination={
@@ -871,7 +872,7 @@ It needs the same permission as the previous lambda -> sending emails as well as
 
 to make: 
 
-```
+```python
 import json
 import datetime
 import re
@@ -1012,7 +1013,7 @@ def checkLength(name, str, maxLength):
 
 So what happens with this update? Now when you enter a comment and submit it on the website, it is processed the `POST` which given that the data is proper it saves it to the Dynamodb and sends an email to the user with the body: 
 
-```
+```python
 'Body': {
     'Html': {
         'Data': '<html><b>PageID</b>:'+page_id+',<br><b>DisplayName</b>:'+ display_name+',<br><b>Comment</b>:<br>' +unquote(parameters['comment']).replace('\n','<br>')+'<br>    <a href="mailto:comments@YOUROWNEDDOMAIN.COM?subject='+quote('{"commentID":"' +ID + '"}')+'">Click here to approve!</a></html>',
@@ -1025,7 +1026,7 @@ The body is html formatted and the first few data just lists the comment, page i
 ![](assets/domain/domain5.png)
 
 Clicking the link opens up a reply window with the subject of the email being the commentID that has been saved to the Dynamodb. When pressing the reply, the way the "send to" address is setup it is processed by `approveComment` lambda. The email is first checked to make sure that your email is from a valid domain (`YOURPERSONAL@EMAILADDRESS.COM`). All the various comment parameters are extracted and then saved to the Dynomadb - with the only thing changed is the approved status. Using `update_item` with the same key (`commentID`) just overwrites the entry. 
-```
+```python
 table.update_item(
         Key={
             'commentID':subject['commentID']
@@ -1044,12 +1045,12 @@ This additional lambda and change to the `commentSectionManager` allows to be no
 
 This last - extra bonus section - will add an additional google captcha check in order ensure more security. We will use google captcha v2. In the html we will import the google captch code:
 
-```
+```html
 <script src="https://www.google.com/recaptcha/api.js" async defer></script>
 ```
 
 The submit button will have the captch attached
-```
+```html
 			<form action="?" method="POST">
 				<div class="g-recaptcha" data-sitekey="SITE_KEY"></div>
 				<div id="g-recaptcha-error"></div>
@@ -1059,7 +1060,7 @@ The submit button will have the captch attached
 
 upon submit it will be checked to make sure it is actually used:
 
-```
+```html
 	document.getElementById('g-recaptcha-error').innerHTML = '';
 		var response = grecaptcha.getResponse();
 		if(response.length == 0) {
@@ -1070,7 +1071,7 @@ upon submit it will be checked to make sure it is actually used:
 
 In addition, the captcha response will be sent to the `POST` of `commentSectionManager`
 
-```
+```html
 		$.ajax({
 			type: "POST",
 			url: 'https://RANDOM_STRING_AS_SEEN_ON_APIGATEWAY.execute-api.us-west-2.amazonaws.com/prod/comment?display_name='+display_name+'&comment='+encodeURIComponent(comment)+'&page_id=page1'+'&response='+response,
@@ -1080,7 +1081,7 @@ In addition, the captcha response will be sent to the `POST` of `commentSectionM
 
 The following will be added to the `commentSectionManager` to verify that captcha was approved before writing to the database. 
 
-```
+```html
 	catchaResponse = parameters['response']
         
         http = urllib3.PoolManager()
@@ -1098,7 +1099,7 @@ The following will be added to the `commentSectionManager` to verify that captch
 
 The html and `commentSectionManager` are below:
 
-```
+```html
 <html>
 	<head>
 		<script src="https://ajax.googleapis.com/ajax/libs/jquery/3.4.1/jquery.min.js"></script>
@@ -1213,7 +1214,7 @@ The html and `commentSectionManager` are below:
 </html>
 ```
 
-```
+```python
 import json
 import datetime
 import re
